@@ -1,89 +1,54 @@
-#include <RCSwitch.h>
+#define relay1Pin 13
 
-static const char* bin2tristate(const char* bin);
-static char * dec2binWzerofill(unsigned long Dec, unsigned int bitLength);
-void output(unsigned long decimal, unsigned int length, unsigned int delay, unsigned int* raw, unsigned int protocol);
+#include <Arduino.h>
+#include "RCSwitch.h"
+#include "relay.h"
+// #include <OLED_I2C.h>
+// #define hello "Ghbdtn" // Привет
+// OLED  myOLED(SDA, SCL, 8);
 
 RCSwitch mySwitch = RCSwitch();
+Relay relay1 = Relay(relay1Pin);
 
-void setup() {
-  pinMode(13,OUTPUT);
-  digitalWrite(13, HIGH);
+uint32_t currentTime; // Текущее время
+int64_t recData = 0;
+
+// extern uint8_t RusFont[];
+
+void setup()
+{
   Serial.begin(9600);
+  relay1.setPermition();
+  // myOLED.begin();
+  // myOLED.setFont(RusFont);
   mySwitch.enableReceive(0);  // Receiver on interrupt 0 => that is pin #2
+
+  currentTime = millis();
 }
 
-void loop() {
+void loop()
+{
   if (mySwitch.available()) {
-    output(mySwitch.getReceivedValue(), mySwitch.getReceivedBitlength(), mySwitch.getReceivedDelay(), mySwitch.getReceivedRawdata(),mySwitch.getReceivedProtocol());
+    recData = mySwitch.getReceivedValue();
+    if(recData == 5393)
+      relay1.cmdOpen = true;
+    if(recData == 9678)
+      relay1.cmdClose = true;
     mySwitch.resetAvailable();
   }
-}
 
-void output(unsigned long decimal, unsigned int length, unsigned int delay, unsigned int* raw, unsigned int protocol) {
+  relay1.open(1000);
 
-  const char* b = dec2binWzerofill(decimal, length);
-  Serial.print("Decimal: ");
-  Serial.print(decimal);
-  Serial.print(" (");
-  Serial.print( length );
-  Serial.print("Bit) Binary: ");
-  Serial.print( b );
-  Serial.print(" Tri-State: ");
-  Serial.print( bin2tristate( b) );
-  Serial.print(" PulseLength: ");
-  Serial.print(delay);
-  Serial.print(" microseconds");
-  Serial.print(" Protocol: ");
-  Serial.println(protocol);
-  
-  Serial.print("Raw data: ");
-  for (unsigned int i=0; i<= length*2; i++) {
-    Serial.print(raw[i]);
-    Serial.print(",");
+  relay1.close(2000);
+
+  // Опрос об ошибках раз в 5 сек. 
+  if (millis() >= (currentTime + 5000))
+  {
+    currentTime = millis();
+    if((relay1.getErrorStatus() & CMDOPCL) == CMDOPCL)
+      relay1.clearErrorStatus();
   }
-  Serial.println();
-  Serial.println();
-}
-
-static const char* bin2tristate(const char* bin) {
-  static char returnValue[50];
-  int pos = 0;
-  int pos2 = 0;
-  while (bin[pos]!='\0' && bin[pos+1]!='\0') {
-    if (bin[pos]=='0' && bin[pos+1]=='0') {
-      returnValue[pos2] = '0';
-    } else if (bin[pos]=='1' && bin[pos+1]=='1') {
-      returnValue[pos2] = '1';
-    } else if (bin[pos]=='0' && bin[pos+1]=='1') {
-      returnValue[pos2] = 'F';
-    } else {
-      return "not applicable";
-    }
-    pos = pos+2;
-    pos2++;
-  }
-  returnValue[pos2] = '\0';
-  return returnValue;
-}
-
-static char * dec2binWzerofill(unsigned long Dec, unsigned int bitLength) {
-  static char bin[64]; 
-  unsigned int i=0;
-
-  while (Dec > 0) {
-    bin[32+i++] = ((Dec & 1) > 0) ? '1' : '0';
-    Dec = Dec >> 1;
-  }
-
-  for (unsigned int j = 0; j< bitLength; j++) {
-    if (j >= bitLength - i) {
-      bin[j] = bin[ 31 + i - (j - (bitLength - i)) ];
-    } else {
-      bin[j] = '0';
-    }
-  }
-  bin[bitLength] = '\0';
-  
-  return bin;
+  // myOLED.clrScr();
+  // myOLED.print(hello, CENTER, 0);
+  // myOLED.update();
 }
