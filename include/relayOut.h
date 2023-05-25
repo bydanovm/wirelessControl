@@ -1,0 +1,48 @@
+#include <Arduino.h>
+#include "tools.h"
+#include "settings.h"
+
+#define NOTPERM    0x01
+#define ISOPENED   0x02
+#define ISCLOSED   0x03
+#define CMDOPCL    0x10 // Пришли две команды
+#define ERRMODE    0x11 // Ошибка режима работы
+
+class RelayOut : public numcopies {
+    private:
+        byte pin; // Ножка
+        byte mode; // Тип работы
+        bool condition; // Открыто/Закрыто
+        bool permition; // Разрешение
+        bool remoteControl; // Внешнее управление
+        byte errorStatus; // Байт ошибок
+        uint32_t currentTimeOpen; // Текущее время для открытия
+        uint32_t currentTimeClose; // Текущее время для закрытия
+        bool delayOpen; // Бит начала работы таймера
+        bool delayClose; // Бит начала работы таймера        
+        // Статика    
+        static uint8_t staticCountOpenRelay; // Количество открытых реле
+        static void staticCountOpenRelayIncr();
+        static void staticCountOpenRelayDecr();
+
+    public:
+        RelayOut();
+        RelayOut(byte _pin, byte _mode);
+        bool open(void);
+        bool open(uint32_t _delay);
+        bool close(void);
+        bool close(uint32_t _delay);
+        bool extOpen(void);
+        bool getCondition(void);
+        bool getPermition(void);
+        void setPermition(void);
+        void unsetPermition(void);
+        byte getErrorStatus(void);
+        void clearErrorStatus(void);
+        bool cmdOpen; // Команда открыть
+        bool cmdClose; // Команда закрыть
+        void onInt();       
+        void offInt();
+        bool getInt();        
+        uint8_t getCountOpenRelay(); // Функция получения количества открытых реле
+};
