@@ -15,7 +15,8 @@ class RelayOut : public numcopies {
         bool condition; // Открыто/Закрыто
         bool permition; // Разрешение
         bool remoteControl; // Внешнее управление
-        byte errorStatus; // Байт ошибок
+        bool inverseMode; // Инверсивное управление
+        uint8_t errorStatus; // Байт ошибок
         uint32_t currentTimeOpen; // Текущее время для открытия
         uint32_t currentTimeClose; // Текущее время для закрытия
         bool delayOpen; // Бит начала работы таймера
@@ -27,13 +28,15 @@ class RelayOut : public numcopies {
 
     public:
         RelayOut();
-        RelayOut(byte _pin, byte _mode);
+        RelayOut(byte _pin, byte _mode, bool _inverseMode = false);
         bool open(void);
         bool open(uint32_t _delay);
         bool close(void);
         bool close(uint32_t _delay);
         bool extOpen(void);
         bool getCondition(void);
+        void setCondition(void);
+        void unsetCondition(void);
         bool getPermition(void);
         void setPermition(void);
         void unsetPermition(void);
@@ -41,8 +44,8 @@ class RelayOut : public numcopies {
         void clearErrorStatus(void);
         bool cmdOpen; // Команда открыть
         bool cmdClose; // Команда закрыть
-        void onInt();       
+        void onInt();
         void offInt();
-        bool getInt();        
+        bool getInt();
         uint8_t getCountOpenRelay(); // Функция получения количества открытых реле
 };

@@ -1,28 +1,31 @@
 #include "relayOut.h"
 
 RelayOut::RelayOut(){}
-RelayOut::RelayOut(byte _pin, byte _mode){
+RelayOut::RelayOut(byte _pin, byte _mode, bool _inverseMode){
     pin = _pin;
     mode = _mode;
+    inverseMode = _inverseMode;
     remoteControl = false;
     permition = false;
     pinMode(pin, mode);
+    RelayOut::setCondition();
+    digitalWrite(pin, condition);
 }
 bool RelayOut::open(void){
     bool result = false;
     if((mode & OUTPUT) == OUTPUT){
         if((cmdOpen && !cmdClose) || remoteControl == true){    
-            if((condition == false && permition == true) || remoteControl == true){
-                condition = true;
+            if((RelayOut::getCondition() == false && permition == true) || remoteControl == true){
+                RelayOut::unsetCondition();
                 digitalWrite(pin, condition);
                 if(getCountOpenRelay() < countObjects)
                     staticCountOpenRelayIncr();
                 result = true;
                 cmdOpen = false;
             }
-            else if(permition == false)
+            else if(RelayOut::getPermition() == false)
                 errorStatus |= NOTPERM; 
-            else if(condition == true)
+            else if(RelayOut::getCondition() == true)
                 errorStatus |= ISOPENED; 
         }
         else
@@ -35,14 +38,14 @@ bool RelayOut::open(void){
 bool RelayOut::open(uint32_t _delay){
     bool result = false;
     if((mode & OUTPUT) == OUTPUT){
-        if((condition == false && permition == true) || remoteControl == true){
+        if((RelayOut::getCondition() == false && permition == true) || remoteControl == true){
             if(delayOpen == false){
                 delayOpen = true;
                 currentTimeOpen = millis();
             }
             if (millis() >= (currentTimeOpen + _delay))
             {
-                condition = true;
+                RelayOut::unsetCondition();
                 digitalWrite(pin, condition);
                 if(getCountOpenRelay() < countObjects)
                     staticCountOpenRelayIncr();
@@ -51,9 +54,9 @@ bool RelayOut::open(uint32_t _delay){
                 cmdOpen = false;
             }
         }
-        else if(permition == false)
+        else if(RelayOut::getPermition() == false)
             errorStatus |= NOTPERM; 
-        else if(condition == true)
+        else if(RelayOut::getCondition() == true)
             errorStatus |= ISOPENED;  
     }
     else
@@ -64,8 +67,8 @@ bool RelayOut::open(uint32_t _delay){
 bool RelayOut::close(void){
     bool result = false;
     if((mode & OUTPUT) == OUTPUT){
-        if(condition == true){
-            condition = false;
+        if(RelayOut::getCondition() == true){
+            RelayOut::setCondition();
             digitalWrite(pin, condition);
             if(getCountOpenRelay() > 0)
                 staticCountOpenRelayDecr();
@@ -73,7 +76,7 @@ bool RelayOut::close(void){
             remoteControl = false;
             cmdClose = false;
         } 
-        else if(condition == false)
+        else if(RelayOut::getCondition() == false)
             errorStatus |= ISCLOSED; 
     }
     else
@@ -84,14 +87,14 @@ bool RelayOut::close(void){
 bool RelayOut::close(uint32_t _delay){
     bool result = false;
     if((mode & OUTPUT) == OUTPUT){
-        if(condition == true){
+        if(RelayOut::getCondition() == true){
             if(delayClose == false){
                 delayClose = true;
                 currentTimeClose = millis();
             }
             if (millis() >= (currentTimeClose + _delay))
             {
-                condition = false;
+                RelayOut::setCondition();
                 digitalWrite(pin, condition);
                 if(getCountOpenRelay() > 0)
                     staticCountOpenRelayDecr();                    
@@ -101,7 +104,7 @@ bool RelayOut::close(uint32_t _delay){
             }
             remoteControl = false;
         }
-        else if(condition == false)
+        else if(RelayOut::getCondition() == false)
             errorStatus |= ISCLOSED;  
     }
     else
@@ -117,7 +120,22 @@ bool RelayOut::extOpen(void){
     return result;
 }
 bool RelayOut::getCondition(void){
-    return condition;
+    if(inverseMode)
+        return !condition;
+    else
+        return condition;
+}
+void RelayOut::setCondition(void){
+    if(inverseMode)
+        condition = true;
+    else
+        condition = false;
+}
+void RelayOut::unsetCondition(void){
+    if(inverseMode)
+        condition = false;
+    else
+        condition = true;
 }
 bool RelayOut::getPermition(void){
     return permition;
@@ -134,7 +152,7 @@ void RelayOut::unsetPermition(void){
     else
         errorStatus |= ERRMODE;
 }
-byte RelayOut::getErrorStatus(void){
+uint8_t RelayOut::getErrorStatus(void){
     return errorStatus;
 }
 void RelayOut::clearErrorStatus(void){
