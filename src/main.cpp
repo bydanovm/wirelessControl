@@ -1,4 +1,4 @@
-#include <Arduino.h>
+#include "settings.h"
 #include "RCSwitch.h"
 #include "relayOut.h"
 #include "relayIn.h"
@@ -8,19 +8,21 @@
 
 RCSwitch mySwitch = RCSwitch();
 
-RelayOut relayMotorOpen = RelayOut(relayMotorOpen1Pin, OUTPUT);
-RelayOut relayMotorClose = RelayOut(relayMotorClose1Pin, OUTPUT);
+RelayOut relayMotorOpen = RelayOut(relayMotorOpenPin, OUTPUT, true);
+RelayOut relayMotorClose = RelayOut(relayMotorClosePin, OUTPUT, true);
+RelayOut relaySignalLamp = RelayOut(relaySignalLampPin, OUTPUT, false);
 
 RelayIn * RelayIn::instances[4] = {NULL, NULL};
-RelayIn photoRelay = RelayIn(inRelay3Pin, INPUT_PULLUP);
+RelayIn photoRelay = RelayIn(inRelay3Pin, INPUT_PULLUP); // Фотоэлемент
 
-RelayIn endCapOpen  = RelayIn(inRelay1Pin, INPUT_PULLUP);
-RelayIn endCapClose = RelayIn(inRelay2Pin, INPUT_PULLUP);
+RelayIn endCapOpen  = RelayIn(inRelay1Pin, INPUT_PULLUP); // Концеквик открытия
+RelayIn endCapClose = RelayIn(inRelay2Pin, INPUT_PULLUP); // Концевик закрытия
 
 uint32_t currentTime5S; // Текущее время для таймера в 1 сек
 uint32_t currentTime1S; // Текущее время для таймера в 5 сек
-unsigned long recData = 0; // Буфер
-bool cmdOpen, cmdClose, cmdStopClose = false;
+uint32_t currentTimeSignalLamp;
+unsigned long recData = 0; // Буфер для приема команд
+bool cmdOpen, cmdClose, cmdStopClose, cmdSignalLamp = false;
 bool isOpening, isClosing = false;
 bool isOpened, isClosed = false;
 
@@ -28,9 +30,18 @@ bool isOpened, isClosed = false;
 
 void setup()
 {
+  pinMode(8, OUTPUT);
+  digitalWrite(8, HIGH);
+  pinMode(9, OUTPUT);
+  pinMode(18,OUTPUT);
+  digitalWrite(18,LOW);
+  pinMode(19,OUTPUT);
+  digitalWrite(19,LOW);
+
   Serial.begin(115200);
   relayMotorOpen.setPermition();
   relayMotorClose.setPermition();
+  relaySignalLamp.setPermition();
   photoRelay.onInt();
   endCapOpen.onInt();
   endCapClose.onInt();
@@ -39,32 +50,37 @@ void setup()
   mySwitch.enableReceive(0);  // Receiver on interrupt 0 => that is pin #2
 
   delay(1000);
-  currentTime5S = millis();
-  currentTime1S = millis();
+  currentTime5S = currentTime1S =  millis();
 }
 
 void loop()
 {
   if (mySwitch.available()) {
     recData = mySwitch.getReceivedValue();
-    Serial.print("Recieve ");
+    DEBUG("Recieve ");
     switch(recData){
       case 5393:
         cmdOpen = true;
         cmdClose = false;
         relayMotorClose.clearErrorStatus();
         relayMotorOpen.clearErrorStatus();
-        Serial.println((String)recData + " Opening...");
+        DEBUGLN((String)recData + " Opening...");
         break;
       case 9678:
         cmdClose = true;
         cmdOpen = false;
         relayMotorClose.clearErrorStatus();
         relayMotorOpen.clearErrorStatus();
-        Serial.println((String)recData + " Closing...");        
+        DEBUGLN((String)recData + " Closing...");        
+        break;
+      case 2341:
+        cmdSignalLamp = true;
+        relaySignalLamp.clearErrorStatus();
+        currentTimeSignalLamp = millis();
+        DEBUGLN((String)recData + " Signal lamp...");
         break;
       default:
-        Serial.println((String)recData + " Unknown command");
+        DEBUGLN((String)recData + " Unknown command...");
         break;
     }
     mySwitch.resetAvailable();
@@ -73,42 +89,42 @@ void loop()
   // Проверка срабатывания фотоэлемента
   if(photoRelay.getInt() && !cmdStopClose){
     cmdStopClose = true;
-    Serial.println("Blocking photorelay is up");
+    DEBUGLN("Blocking photorelay is up");
   }
   else if(!photoRelay.getInt() && cmdStopClose){
     cmdStopClose = false;
-    Serial.println("Blocking photorelay is down");
+    DEBUGLN("Blocking photorelay is down");
   }
 
   // Проверка концевика на открытие
   if(endCapOpen.getInt() && !isOpened){
     isOpened = true;
-    Serial.println("Endcap open is up");
+    DEBUGLN("Endcap open is up");
   }
   else if(!endCapOpen.getInt() && isOpened){
     isOpened = false;
-    Serial.println("Endcap open is down");
+    DEBUGLN("Endcap open is down");
   }
 
   // Проверка концевика на закрытие
   if(endCapClose.getInt() && !isClosed){
     isClosed = true;
-    Serial.println("Endcap close is up");
+    DEBUGLN("Endcap close is up");
   }
   else if(!endCapClose.getInt() && isClosed){
     isClosed = false;
-    Serial.println("Endcap close is down");
+    DEBUGLN("Endcap close is down");
   }
 
   if(isClosed && isOpened && (cmdOpen || cmdClose)){
     cmdOpen = cmdClose = false;
-    Serial.println("Blocking endcap");
+    DEBUGLN("Blocking endcap");
   }
 
   // Сработано фотореле, очистка команд
   if(cmdStopClose && (cmdOpen || cmdClose)){
     cmdOpen = cmdClose = false;
-    Serial.println("Blocking photorelay");
+    DEBUGLN("Blocking photorelay");
   }
   // Сработано фотореле и идет закрытие, то
   // сбрасываем реле 2 (закрытие)
@@ -116,12 +132,12 @@ void loop()
   // выдаем команду на срабатывание реле 2 (открытие)
   if(cmdStopClose && isClosing && relayMotorClose.getCondition()){
     if(relayMotorClose.close(delayStop))
-      Serial.println("Blocking. Relay 2 is down");
+      DEBUGLN("Blocking. Relay 2 is down");
   }
   else if(!cmdStopClose && isClosing && !relayMotorClose.getCondition() && !cmdOpen){
     cmdClose = true;
     isClosing = false;
-    Serial.println("Relay 2 is uping");
+    DEBUGLN("Relay 2 is uping");
   }
 
   // Сработано фотореле и идет открытие, то
@@ -130,12 +146,12 @@ void loop()
   // выдаем команду на срабатывание реле 1 (открытие)
   if(cmdStopClose && isOpening && relayMotorOpen.getCondition()){
     if(relayMotorOpen.close(delayStop))
-      Serial.println("Relay 1 is down");
+      DEBUGLN("Relay 1 is down");
   }
   else if(!cmdStopClose && isOpening && !relayMotorOpen.getCondition() && !cmdClose){
     cmdOpen = true;
     isOpening = false;
-    Serial.println("Relay 1 is uping");
+    DEBUGLN("Relay 1 is uping");
   }
 
   // Если поступила команда открыть и не идет открытие и не открыто, то
@@ -146,7 +162,7 @@ void loop()
   if(cmdOpen && !isOpening && !isOpened){
     if(relayMotorClose.getCondition()){
       if(relayMotorClose.close(delayStop))
-        Serial.println("Opening. Relay 2 is down");
+        DEBUGLN("Opening. Relay 2 is down");
     }
     else{
       if(relayMotorOpen.open(delayStart)){
@@ -154,7 +170,7 @@ void loop()
         cmdOpen = false;
         if(isClosing)
           isClosing = false;
-        Serial.println("Opening. Relay 1 is up");
+        DEBUGLN("Opening. Relay 1 is up");
       }
     }
   }
@@ -162,7 +178,7 @@ void loop()
     if(relayMotorOpen.close(delayStop)){
       cmdOpen = false;
       isOpening = false;
-      Serial.println("Opening. Relay 1 is down");
+      DEBUGLN("Opening. Relay 1 is down");
     }
   }
 
@@ -174,7 +190,7 @@ void loop()
   if(cmdClose && !isClosing && !isClosed){
     if(relayMotorOpen.getCondition()){
       if(relayMotorOpen.close(delayStop))
-        Serial.println("Closing. Relay 1 is down");
+        DEBUGLN("Closing. Relay 1 is down");
     }
     else{
       if(relayMotorClose.open(delayStart)){
@@ -182,7 +198,7 @@ void loop()
         cmdClose = false;
         if(isOpening)
           isOpening = false;
-        Serial.println("Closing. Relay 2 is up");
+        DEBUGLN("Closing. Relay 2 is up");
       }
     }
   }
@@ -190,10 +206,31 @@ void loop()
     if(relayMotorClose.close(delayStop)){
       cmdClose = false;
       isClosing = false;
-      Serial.println("Closing. Relay 2 is down");
+      DEBUGLN("Closing. Relay 2 is down");
     }
   }
 
+  // Если пришла команда на сигнальную лампу
+  // или команда на открытие/закрытие, то 
+  // активировать реле каждые N времени
+  // Иначе, проверяем активно ли реле, если да, то 
+  // деактивируем его через N времени
+  if(cmdSignalLamp || isOpening || isClosing){
+    if(!relaySignalLamp.getCondition())
+      relaySignalLamp.open(delaySignalLamp);
+    else
+      relaySignalLamp.close(delaySignalLamp);
+  }
+  else{
+    if(relaySignalLamp.getCondition())
+      relaySignalLamp.close(delaySignalLamp);
+  }
+  // Сброс команды включения сигнальной лампы
+  if (millis() >= (currentTimeSignalLamp + 60000) && cmdSignalLamp)
+  {
+    // currentTimeSignalLamp = millis();
+    cmdSignalLamp = false;
+  }
   // Опрос раз в 5 сек. 
   if (millis() >= (currentTime5S + 5000))
   {
@@ -204,17 +241,17 @@ void loop()
   {
     currentTime1S = millis();
 
-    // Serial.println("-------------------------------------");
-    // Serial.print("photoRelay is: " + (String)cmdStopClose + " ");
-    // Serial.print("isClosing is: " + (String)isClosing + " ");
-    // Serial.print("cmdClose is: " + (String)cmdClose + " ");
-    // Serial.println("getCondition is: " + (String)relayMotorClose.getCondition() + " ");
+    // DEBUGLN("-------------------------------------");
+    // DEBUG("photoRelay is: " + (String)cmdStopClose + " ");
+    // DEBUG("isClosing is: " + (String)isClosing + " ");
+    // DEBUG("cmdClose is: " + (String)cmdClose + " ");
+    // DEBUGLN("getCondition is: " + (String)relayMotorClose.getCondition() + " ");
 
-    // Serial.print("photoRelay is: " + (String)cmdStopClose + " ");
-    // Serial.print("isOpening is: " + (String)isOpening + " ");
-    // Serial.print("cmdOpen is: " + (String)cmdOpen + " ");
-    // Serial.println("getCondition is: " + (String)relayMotorOpen.getCondition() + " ");
-    // Serial.println("getCondition is: " + (String)relayMotorOpen.getCondition() + " ");
+    // DEBUG("photoRelay is: " + (String)cmdStopClose + " ");
+    // DEBUG("isOpening is: " + (String)isOpening + " ");
+    // DEBUG("cmdOpen is: " + (String)cmdOpen + " ");
+    // DEBUGLN("getCondition is: " + (String)relayMotorOpen.getCondition() + " ");
+    // DEBUGLN("getCondition is: " + (String)relayMotorOpen.getCondition() + " ");
   }  
   // myOLED.clrScr();
   // myOLED.print(hello, CENTER, 0);
