@@ -30,14 +30,15 @@ bool isOpened, isClosed = false;
 
 void setup()
 {
-  pinMode(8, OUTPUT);
-  digitalWrite(8, HIGH);
-  pinMode(9, OUTPUT);
-  pinMode(18,OUTPUT);
-  digitalWrite(18,LOW);
-  pinMode(19,OUTPUT);
-  digitalWrite(19,LOW);
-
+  #ifdef SIM_DEVICE
+    pinMode(8, OUTPUT);
+    digitalWrite(8, HIGH);
+    pinMode(9, OUTPUT);
+    pinMode(18,OUTPUT);
+    digitalWrite(18,LOW);
+    pinMode(19,OUTPUT);
+    digitalWrite(19,LOW);
+  #endif
   Serial.begin(115200);
   relayMotorOpen.setPermition();
   relayMotorClose.setPermition();

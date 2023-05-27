@@ -1,5 +1,5 @@
 #define DEBUG_ENABLE // Закомментировать если отладка не нужна
-
+#define SIM_DEVICE // Симуляция девайсов
 #if defined(ARDUINO) && ARDUINO >= 100
     #define relayMotorOpenPin    14
     #define relayMotorClosePin   15
