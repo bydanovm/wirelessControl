@@ -1,4 +1,9 @@
 #include "settings.h"
+#if defined(ESP8266)
+    #include "homeWifi.h"
+#else
+
+#endif
 #include "RCSwitch.h"
 #include "relayOut.h"
 #include "relayIn.h"

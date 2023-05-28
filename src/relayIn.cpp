@@ -1,5 +1,10 @@
 #include "relayIn.h"
-#include "PinChangeInterrupt.h"
+
+#if defined(ESP8266)
+    #define RECIEVE_ATTR ICACHE_RAM_ATTR
+#else
+    #define RECIEVE_ATTR
+#endif
 
 RelayIn::RelayIn(){}
 RelayIn::RelayIn(byte _pin, byte _mode){
@@ -23,19 +28,35 @@ void RelayIn::onInt(){
     if(((mode & INPUT) == INPUT) || ((mode & INPUT_PULLUP) == INPUT_PULLUP)){
         switch(pin){
             case inRelay1Pin:
-                attachPinChangeInterrupt(digitalPinToPinChangeInterrupt(pin), inRelay1Int, CHANGE);
+                #if defined(ESP8266)
+                    attachInterrupt(inRelay1Pin, inRelay1Int, CHANGE);
+                #else
+                    attachPinChangeInterrupt(digitalPinToPinChangeInterrupt(pin), inRelay1Int, CHANGE);
+                #endif
                 instances[0] = this;
                 break;
             case inRelay2Pin:
-                attachPinChangeInterrupt(digitalPinToPinChangeInterrupt(pin), inRelay2Int, CHANGE);
+                #if defined(ESP8266)
+                    attachInterrupt(inRelay2Pin, inRelay2Int, CHANGE);
+                #else
+                    attachPinChangeInterrupt(digitalPinToPinChangeInterrupt(pin), inRelay2Int, CHANGE);
+                #endif
                 instances[1] = this;
                 break;
             case inRelay3Pin:
-                attachPinChangeInterrupt(digitalPinToPinChangeInterrupt(pin), inRelay3Int, CHANGE);
+                #if defined(ESP8266)
+                    attachInterrupt(inRelay3Pin, inRelay3Int, CHANGE);
+                #else
+                    attachPinChangeInterrupt(digitalPinToPinChangeInterrupt(pin), inRelay3Int, CHANGE);
+                #endif
                 instances[2] = this;
                 break;
             case inRelay4Pin:
-                attachPinChangeInterrupt(digitalPinToPinChangeInterrupt(pin), inRelay4Int, CHANGE);
+                #if defined(ESP8266)
+                    attachInterrupt(inRelay4Pin, inRelay4Int, CHANGE);
+                #else
+                    attachPinChangeInterrupt(digitalPinToPinChangeInterrupt(pin), inRelay4Int, CHANGE);
+                #endif
                 instances[3] = this;
                 break;
         }
@@ -45,28 +66,32 @@ void RelayIn::onInt(){
 }   
 // Отключение прерывания
 void RelayIn::offInt(){
-    detachPinChangeInterrupt(digitalPinToPinChangeInterrupt(pin));
+    #if defined(ESP8266)
+        detachInterrupt(pin);
+    #else
+        detachPinChangeInterrupt(digitalPinToPinChangeInterrupt(pin));
+    #endif
 }   
 
-void RelayIn::inRelay1Int(){
+void RECIEVE_ATTR RelayIn::inRelay1Int(){
     if(RelayIn::instances[0] != NULL ){
         RelayIn::instances[0]->intRising();
     }
 }
 
-void RelayIn::inRelay2Int(){
+void RECIEVE_ATTR RelayIn::inRelay2Int(){
     if(RelayIn::instances[1] != NULL ){
         RelayIn::instances[1]->intRising();
     }
 }
 
-void RelayIn::inRelay3Int(){
+void RECIEVE_ATTR RelayIn::inRelay3Int(){
     if(RelayIn::instances[2] != NULL ){
         RelayIn::instances[2]->intRising();
     }
 }
 
-void RelayIn::inRelay4Int(){
+void RECIEVE_ATTR RelayIn::inRelay4Int(){
     if(RelayIn::instances[3] != NULL ){
         RelayIn::instances[3]->intRising();
     }
