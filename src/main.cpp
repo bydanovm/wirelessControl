@@ -16,8 +16,8 @@ homeWifi myWifi = homeWifi("Redmi_5777","S_tjmx8inu123");
 
 RCSwitch mySwitch = RCSwitch();
 
-RelayOut relayMotorOpen = RelayOut(relayMotorOpenPin, OUTPUT, true);
-RelayOut relayMotorClose = RelayOut(relayMotorClosePin, OUTPUT, true);
+RelayOut relayMotorOpen = RelayOut(relayMotorOpenPin, OUTPUT, false);
+RelayOut relayMotorClose = RelayOut(relayMotorClosePin, OUTPUT, false);
 RelayOut relaySignalLamp = RelayOut(relaySignalLampPin, OUTPUT, false);
 
 RelayIn * RelayIn::instances[4] = {NULL, NULL};
@@ -33,21 +33,13 @@ unsigned long recData = 0; // Буфер для приема команд
 bool cmdOpen, cmdClose, cmdStopClose, cmdSignalLamp = false;
 bool isOpening, isClosing = false;
 bool isOpened, isClosed = false;
-
+bool tStatusMain, tStatusAdd = false;
 // extern uint8_t RusFont[];
 
 void setup()
 {
   #ifdef SIM_DEVICE
-    #ifdef ESP8266
-      // pinMode(8, OUTPUT);
-      // digitalWrite(8, HIGH);
-      // pinMode(9, OUTPUT);
-      // pinMode(18,OUTPUT);
-      // digitalWrite(18,LOW);
-      // pinMode(19,OUTPUT);
-      // digitalWrite(19,LOW);
-    #else
+    #ifndef ESP8266
       pinMode(8, OUTPUT);
       digitalWrite(8, HIGH);
       pinMode(9, OUTPUT);
@@ -69,7 +61,9 @@ void setup()
   #ifdef ESP8266
   myWifi.initConnect();
   myWifi.initMQTT("m3.wqtt.ru", 8361, "esp8266_gates", "u_1AYLFH", "AWAblv6p");
+  myWifi.setGatesCallback();
   #endif;
+
   mySwitch.enableReceive(pinRCSwitch);
 
   delay(1000);
@@ -79,13 +73,50 @@ void setup()
 void loop()
 {
   #ifdef ESP8266
+  // Работа с брокером MQTT
   if(myWifi.checkConnectAtt()){
     if(myWifi.checkConnectMQTT()){
       myWifi.mqttLoop();
-      
+      // Проверка открытия ворот
+      if(isOpened) tStatusAdd = true;
+      if(isClosed) tStatusAdd = false;
+      if(tStatusMain != tStatusAdd){
+        tStatusMain = tStatusAdd;
+        myWifi.setGatesStatus(tStatusMain);
+      }
     }
   }
+  if(myWifi.cmdMQTT != cmdMQTTEmpty){
+    if((myWifi.cmdMQTT == cmdMQTTOpen) && !cmdOpen && !isOpened && !isOpening){
+      cmdOpen = true;
+      cmdClose = false;
+      relayMotorClose.clearErrorStatus();
+      relayMotorOpen.clearErrorStatus();
+      DEBUGLN((String)myWifi.cmdMQTT + " Opening MQTT cmd...");
+    }
+    if((myWifi.cmdMQTT == cmdMQTTClose) && !cmdClose && !isClosed && !isClosing){
+      cmdClose = true;
+      cmdOpen = false;
+      relayMotorClose.clearErrorStatus();
+      relayMotorOpen.clearErrorStatus();
+      DEBUGLN((String)myWifi.cmdMQTT + " Closing MQTT cmd..."); 
+    }
+    if(myWifi.cmdMQTT == cmdMQTTLampOn){
+      cmdSignalLamp = true;
+      relaySignalLamp.clearErrorStatus();
+      currentTimeSignalLamp = millis();
+      DEBUGLN((String)myWifi.cmdMQTT + " Signal lamp ON MQTT cmd...");
+    }
+    if(myWifi.cmdMQTT == cmdMQTTLampOff){
+      cmdSignalLamp = false;
+      relaySignalLamp.clearErrorStatus();
+      currentTimeSignalLamp = millis();
+      DEBUGLN((String)myWifi.cmdMQTT + " Signal lamp OFF MQTT cmd...");
+    }
+    myWifi.clearCmdMQTT();
+  }
   #endif
+
   if (mySwitch.available()) {
     recData = mySwitch.getReceivedValue();
     DEBUG("Recieve ");

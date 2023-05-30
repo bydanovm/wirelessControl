@@ -113,6 +113,8 @@ bool homeWifi::checkConnectMQTT(){
             mqttClient.publish(mqttTopicDeviceStatus,
                                mqttDeviceStatusOn,
                                mqttDeviceStatusRetained);
+            mqttClient.subscribe(mqttTopicGatesCmd);
+            mqttClient.subscribe(mqttTopicSigLampCmd);
         }
         else{
             DEBUGLN("error: " + (String)mqttClient.state());
@@ -125,4 +127,33 @@ bool homeWifi::checkConnectMQTT(){
 }
 void homeWifi::mqttLoop(){
     mqttClient.loop();
+}
+void homeWifi::setGatesStatus(bool statusGates){
+    mqttClient.publish(mqttTopicGatesStatus,
+                       statusGates == true ? mqttGatesStatusOpen: mqttGatesStatusClose,
+                       mqttGatesStatusRetained);
+}
+void homeWifi::setGatesCallback(){
+    mqttClient.setCallback([this](char *t, uint8_t *p, unsigned int l) { callback(t, p, l); });
+}
+void homeWifi::callback(char* topic, uint8_t* payload, unsigned int length) {
+    
+    String data_pay;
+    for (unsigned int i = 0; i < length; i++) {
+        data_pay += String((char)payload[i]);
+    }
+
+    DEBUGLN((String)topic + " " + data_pay);
+
+    if( String(topic) == mqttTopicGatesCmd ){
+        if(data_pay == "ON" || data_pay == "1") cmdMQTT = cmdMQTTOpen;
+        if(data_pay == "OFF" || data_pay == "0") cmdMQTT = cmdMQTTClose;
+    }
+    else if( String(topic) == mqttTopicSigLampCmd ){
+        if(data_pay == "ON" || data_pay == "1") cmdMQTT = cmdMQTTLampOn;
+        if(data_pay == "OFF" || data_pay == "0") cmdMQTT = cmdMQTTLampOff;
+    }
+}
+void homeWifi::clearCmdMQTT(){
+    cmdMQTT = cmdMQTTEmpty;
 }
