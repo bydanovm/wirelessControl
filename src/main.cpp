@@ -1,15 +1,23 @@
 #include "settings.h"
+#if defined(ESP8266)
+    #include "homeWifi.h"
+#else
+
+#endif
 #include "RCSwitch.h"
 #include "relayOut.h"
 #include "relayIn.h"
 // #include <OLED_I2C.h>
 // #define hello "Ghbdtn" // Привет
 // OLED  myOLED(SDA, SCL, 8);
+#ifdef ESP8266
+homeWifi myWifi = homeWifi("Redmi_5777","S_tjmx8inu123");
+#endif
 
 RCSwitch mySwitch = RCSwitch();
 
-RelayOut relayMotorOpen = RelayOut(relayMotorOpenPin, OUTPUT, true);
-RelayOut relayMotorClose = RelayOut(relayMotorClosePin, OUTPUT, true);
+RelayOut relayMotorOpen = RelayOut(relayMotorOpenPin, OUTPUT, false);
+RelayOut relayMotorClose = RelayOut(relayMotorClosePin, OUTPUT, false);
 RelayOut relaySignalLamp = RelayOut(relaySignalLampPin, OUTPUT, false);
 
 RelayIn * RelayIn::instances[4] = {NULL, NULL};
@@ -25,20 +33,23 @@ unsigned long recData = 0; // Буфер для приема команд
 bool cmdOpen, cmdClose, cmdStopClose, cmdSignalLamp = false;
 bool isOpening, isClosing = false;
 bool isOpened, isClosed = false;
-
+bool tStatusMain, tStatusAdd = false;
 // extern uint8_t RusFont[];
 
 void setup()
 {
-  pinMode(8, OUTPUT);
-  digitalWrite(8, HIGH);
-  pinMode(9, OUTPUT);
-  pinMode(18,OUTPUT);
-  digitalWrite(18,LOW);
-  pinMode(19,OUTPUT);
-  digitalWrite(19,LOW);
-
-  Serial.begin(115200);
+  #ifdef SIM_DEVICE
+    #ifndef ESP8266
+      pinMode(8, OUTPUT);
+      digitalWrite(8, HIGH);
+      pinMode(9, OUTPUT);
+      pinMode(18,OUTPUT);
+      digitalWrite(18,LOW);
+      pinMode(19,OUTPUT);
+      digitalWrite(19,LOW);
+    #endif
+  #endif
+  Serial.begin(9600);
   relayMotorOpen.setPermition();
   relayMotorClose.setPermition();
   relaySignalLamp.setPermition();
@@ -47,7 +58,13 @@ void setup()
   endCapClose.onInt();
   // myOLED.begin();
   // myOLED.setFont(RusFont);
-  mySwitch.enableReceive(0);  // Receiver on interrupt 0 => that is pin #2
+  #ifdef ESP8266
+  myWifi.initConnect();
+  myWifi.initMQTT("m3.wqtt.ru", 8361, "esp8266_gates", "u_1AYLFH", "AWAblv6p");
+  myWifi.setGatesCallback();
+  #endif;
+
+  mySwitch.enableReceive(pinRCSwitch);
 
   delay(1000);
   currentTime5S = currentTime1S =  millis();
@@ -55,6 +72,51 @@ void setup()
 
 void loop()
 {
+  #ifdef ESP8266
+  // Работа с брокером MQTT
+  if(myWifi.checkConnectAtt()){
+    if(myWifi.checkConnectMQTT()){
+      myWifi.mqttLoop();
+      // Проверка открытия ворот
+      if(isOpened) tStatusAdd = true;
+      if(isClosed) tStatusAdd = false;
+      if(tStatusMain != tStatusAdd){
+        tStatusMain = tStatusAdd;
+        myWifi.setGatesStatus(tStatusMain);
+      }
+    }
+  }
+  if(myWifi.cmdMQTT != cmdMQTTEmpty){
+    if((myWifi.cmdMQTT == cmdMQTTOpen) && !cmdOpen && !isOpened && !isOpening){
+      cmdOpen = true;
+      cmdClose = false;
+      relayMotorClose.clearErrorStatus();
+      relayMotorOpen.clearErrorStatus();
+      DEBUGLN((String)myWifi.cmdMQTT + " Opening MQTT cmd...");
+    }
+    if((myWifi.cmdMQTT == cmdMQTTClose) && !cmdClose && !isClosed && !isClosing){
+      cmdClose = true;
+      cmdOpen = false;
+      relayMotorClose.clearErrorStatus();
+      relayMotorOpen.clearErrorStatus();
+      DEBUGLN((String)myWifi.cmdMQTT + " Closing MQTT cmd..."); 
+    }
+    if(myWifi.cmdMQTT == cmdMQTTLampOn){
+      cmdSignalLamp = true;
+      relaySignalLamp.clearErrorStatus();
+      currentTimeSignalLamp = millis();
+      DEBUGLN((String)myWifi.cmdMQTT + " Signal lamp ON MQTT cmd...");
+    }
+    if(myWifi.cmdMQTT == cmdMQTTLampOff){
+      cmdSignalLamp = false;
+      relaySignalLamp.clearErrorStatus();
+      currentTimeSignalLamp = millis();
+      DEBUGLN((String)myWifi.cmdMQTT + " Signal lamp OFF MQTT cmd...");
+    }
+    myWifi.clearCmdMQTT();
+  }
+  #endif
+
   if (mySwitch.available()) {
     recData = mySwitch.getReceivedValue();
     DEBUG("Recieve ");

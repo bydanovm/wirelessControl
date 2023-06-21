@@ -1,5 +1,8 @@
 #include <Arduino.h>
 #include "settings.h"
+#if not defined(ESP8266)
+    // #include "PinChangeInterrupt.h"
+#endif
 
 // #define INPUT      "IN"
 // #define OUTPUT     "OUT"
