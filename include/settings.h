@@ -1,3 +1,5 @@
+#ifndef HEADER_SETTINGS
+#define HEADER_SETTINGS
 #define DEBUG_ENABLE // Закомментировать если отладка не нужна
 #define SIM_DEVICE // Симуляция девайсов
 #if defined(ARDUINO) && ARDUINO >= 100
@@ -6,10 +8,9 @@
     #define relayMotorOpenPin    10 // SD3
     #define relayMotorClosePin   9  // SD2
     #define relaySignalLampPin   4  // D2
-    #define inRelay1Pin          14 // D5 opened
-    #define inRelay2Pin          12 // D6 closed
-    #define inRelay3Pin          13 // D7
-    #define inRelay4Pin          15 // D8
+    #define endCapOpenPin        14 // D5 opened
+    #define endCapClosePin       12 // D6 closed
+    #define photoRelayPin        13 // D7
     #define cmdMQTTEmpty         ""
     #define cmdMQTTOpen          "OPEN"
     #define cmdMQTTClose         "CLOSE"
@@ -23,7 +24,6 @@
     #define inRelay1Pin          3 
     #define inRelay2Pin          4 
     #define inRelay3Pin          5 
-    #define inRelay4Pin          6 
     #endif
     #define delayStart 2000
     #define delayStop  200
@@ -38,4 +38,5 @@
         #define DEBUGLN(x)
         #define DEBUG(x)
     #endif
+#endif
 #endif

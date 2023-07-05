@@ -1,5 +1,6 @@
 #include "settings.h"
 #if defined(ESP8266)
+    // #define MQTT_ON
     #include "homeWifi.h"
 #else
 
@@ -10,24 +11,25 @@
 // #include <OLED_I2C.h>
 // #define hello "Ghbdtn" // Привет
 // OLED  myOLED(SDA, SCL, 8);
-#ifdef ESP8266
+#if defined(ESP8266) && defined(MQTT_ON)
 homeWifi myWifi = homeWifi("Redmi_5777","S_tjmx8inu123");
 #endif
-
+///////////////////////////////////////////////////
+// Добавить запоминалку времени открывания ворот //
+///////////////////////////////////////////////////
 RCSwitch mySwitch = RCSwitch();
 
-RelayOut relayMotorOpen = RelayOut(relayMotorOpenPin, OUTPUT, false);
-RelayOut relayMotorClose = RelayOut(relayMotorClosePin, OUTPUT, false);
-RelayOut relaySignalLamp = RelayOut(relaySignalLampPin, OUTPUT, false);
+RelayOut relayMotorOpen = RelayOut(relayMotorOpenPin, OUTPUT, true);
+RelayOut relayMotorClose = RelayOut(relayMotorClosePin, OUTPUT, true);
+RelayOut relaySignalLamp = RelayOut(relaySignalLampPin, OUTPUT, true);
 
-RelayIn * RelayIn::instances[4] = {NULL, NULL};
-RelayIn photoRelay = RelayIn(inRelay3Pin, INPUT_PULLUP); // Фотоэлемент
-
-RelayIn endCapOpen  = RelayIn(inRelay1Pin, INPUT_PULLUP); // Концеквик открытия
-RelayIn endCapClose = RelayIn(inRelay2Pin, INPUT_PULLUP); // Концевик закрытия
+RelayIn photoRelay = RelayIn(photoRelayPin, INPUT_PULLUP, true); // Фотоэлемент
+RelayIn endCap451  = RelayIn(endCapOpenPin, INPUT_PULLUP, false); // Концевик открытия
+RelayIn endCap443 = RelayIn(endCapClosePin, INPUT_PULLUP, false); // Концевик закрытия
 
 uint32_t currentTime5S; // Текущее время для таймера в 1 сек
 uint32_t currentTime1S; // Текущее время для таймера в 5 сек
+uint32_t currentTime250ms;
 uint32_t currentTimeSignalLamp;
 unsigned long recData = 0; // Буфер для приема команд
 bool cmdOpen, cmdClose, cmdStopClose, cmdSignalLamp = false;
@@ -35,6 +37,10 @@ bool isOpening, isClosing = false;
 bool isOpened, isClosed = false;
 bool tStatusMain, tStatusAdd = false;
 // extern uint8_t RusFont[];
+void getEndCap();
+// void RECIEVE_ATTR capCloseInt();
+// void RECIEVE_ATTR capOpenInt();
+// void RECIEVE_ATTR photoRelayInt();
 
 void setup()
 {
@@ -49,30 +55,35 @@ void setup()
       digitalWrite(19,LOW);
     #endif
   #endif
-  Serial.begin(9600);
+  Serial.begin(115200);
   relayMotorOpen.setPermition();
   relayMotorClose.setPermition();
   relaySignalLamp.setPermition();
-  photoRelay.onInt();
-  endCapOpen.onInt();
-  endCapClose.onInt();
   // myOLED.begin();
   // myOLED.setFont(RusFont);
-  #ifdef ESP8266
+  photoRelay.beginInit();
+  endCap451.beginInit();
+  endCap443.beginInit();
+  // photoRelay.beginInterrupt(capCloseInt);
+  // endCap451.beginInterrupt(capOpenInt);
+  // endCap443.beginInterrupt(photoRelayInt);
+  #if defined(ESP8266) && defined(MQTT_ON)
   myWifi.initConnect();
   myWifi.initMQTT("m3.wqtt.ru", 8361, "esp8266_gates", "u_1AYLFH", "AWAblv6p");
   myWifi.setGatesCallback();
-  #endif;
+  #endif
 
   mySwitch.enableReceive(pinRCSwitch);
 
   delay(1000);
-  currentTime5S = currentTime1S =  millis();
+  currentTime5S = millis();
+  currentTime1S = millis();
+  currentTime250ms = millis();
 }
 
 void loop()
 {
-  #ifdef ESP8266
+  #if defined(ESP8266) && defined(MQTT_ON)
   // Работа с брокером MQTT
   if(myWifi.checkConnectAtt()){
     if(myWifi.checkConnectMQTT()){
@@ -158,28 +169,11 @@ void loop()
     DEBUGLN("Blocking photorelay is down");
   }
 
-  // Проверка концевика на открытие
-  if(endCapOpen.getInt() && !isOpened){
-    isOpened = true;
-    DEBUGLN("Endcap open is up");
-  }
-  else if(!endCapOpen.getInt() && isOpened){
-    isOpened = false;
-    DEBUGLN("Endcap open is down");
-  }
-
-  // Проверка концевика на закрытие
-  if(endCapClose.getInt() && !isClosed){
-    isClosed = true;
-    DEBUGLN("Endcap close is up");
-  }
-  else if(!endCapClose.getInt() && isClosed){
-    isClosed = false;
-    DEBUGLN("Endcap close is down");
-  }
+  getEndCap();
 
   if(isClosed && isOpened && (cmdOpen || cmdClose)){
-    cmdOpen = cmdClose = false;
+    cmdOpen = false;
+    cmdClose = false;
     DEBUGLN("Blocking endcap");
   }
 
@@ -188,6 +182,7 @@ void loop()
     cmdOpen = cmdClose = false;
     DEBUGLN("Blocking photorelay");
   }
+
   // Сработано фотореле и идет закрытие, то
   // сбрасываем реле 2 (закрытие)
   // Иначе, фотореле не сработано и идет закрытие, то
@@ -315,7 +310,61 @@ void loop()
     // DEBUGLN("getCondition is: " + (String)relayMotorOpen.getCondition() + " ");
     // DEBUGLN("getCondition is: " + (String)relayMotorOpen.getCondition() + " ");
   }  
-  // myOLED.clrScr();
-  // myOLED.print(hello, CENTER, 0);
-  // myOLED.update();
 }
+void getEndCap(){
+  // Прерывания - не актуально
+  // // Проверка концевика на открытие
+  // if(endCap451.getInt() && !isOpened){
+  //   endCap451.clearInt();
+  //   isOpened = true;
+  //   DEBUGLN("Endcap open is up");
+  // }
+  // else if(!endCap451.getInt() && isOpened){
+  //   endCap451.clearInt();
+  //   isOpened = false;
+  //   DEBUGLN("Endcap open is down");
+  // }
+
+  // // Проверка концевика на закрытие
+  // if(endCap443.getInt() && !isClosed){
+  //   endCap443.clearInt();
+  //   isClosed = true;
+  //   DEBUGLN("Endcap close is up");
+  // }
+  // else if(!endCap443.getInt() && isClosed){
+  //   endCap443.clearInt();
+  //   isClosed = false;
+  //   DEBUGLN("Endcap close is down");
+  // }
+  if(millis() >= currentTime250ms + 250){
+    currentTime250ms = millis();
+    bool flendCap451 = endCap451.getCondition();
+    bool flendCap443 = endCap443.getCondition();
+    if(!flendCap451 && !flendCap443 && !isOpened && !isClosed){
+      isOpened = true;
+      DEBUGLN("Endcap open is up");
+    }
+    else if(flendCap451 && flendCap443 && isOpened)
+    {
+      isOpened = false;
+      DEBUGLN("Endcap open is down");
+    }
+    if(!flendCap451 && flendCap443 && !isClosed && !isOpened){
+      isClosed = true;
+      DEBUGLN("Endcap close is up");
+    }
+    else if(flendCap451 && flendCap443 && isClosed){
+      isClosed = false;
+      DEBUGLN("Endcap close is down");
+    }
+  }
+}
+// void RECIEVE_ATTR capCloseInt(){
+//     endCap443.intFlag = true;
+// }
+// void RECIEVE_ATTR capOpenInt(){
+//     endCap451.intFlag = true;
+// }
+// void RECIEVE_ATTR photoRelayInt(){
+//     photoRelay.intFlag = true;
+// }

@@ -1,3 +1,5 @@
+#ifndef HEADER_HOME_WIFI
+#define HEADER_HOME_WIFI
 #include "settings.h"
 
 #include <ESP8266WiFi.h>
@@ -77,3 +79,4 @@ class homeWifi {
         char* cmdMQTT;
         void clearCmdMQTT();
 };
+#endif

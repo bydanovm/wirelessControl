@@ -1,3 +1,5 @@
+#ifndef HEADER_RELAY_OUT
+#define HEADER_RELAY_OUT
 #include <Arduino.h>
 #include "tools.h"
 #include "settings.h"
@@ -49,3 +51,4 @@ class RelayOut : public numcopies {
         bool getInt();
         uint8_t getCountOpenRelay(); // Функция получения количества открытых реле
 };
+#endif
