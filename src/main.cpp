@@ -31,13 +31,18 @@ uint32_t currentTime5S; // Текущее время для таймера в 1 
 uint32_t currentTime1S; // Текущее время для таймера в 5 сек
 uint32_t currentTime250ms;
 uint32_t currentTimeSignalLamp;
+uint32_t currentTimeEmergencyStop;
+
 unsigned long recData = 0; // Буфер для приема команд
-bool cmdOpen, cmdClose, cmdStopClose, cmdSignalLamp = false;
+bool cmdOpen, cmdClose, cmdStopClose, cmdSignalLamp, cmdEmergencyStop = false;
 bool isOpening, isClosing = false;
 bool isOpened, isClosed = false;
 bool tStatusMain, tStatusAdd = false;
-// extern uint8_t RusFont[];
+
+// Аварийный СТОП по истечении времени
+void emergencyStop();
 void getEndCap();
+
 // void RECIEVE_ATTR capCloseInt();
 // void RECIEVE_ATTR capOpenInt();
 // void RECIEVE_ATTR photoRelayInt();
@@ -59,8 +64,6 @@ void setup()
   relayMotorOpen.setPermition();
   relayMotorClose.setPermition();
   relaySignalLamp.setPermition();
-  // myOLED.begin();
-  // myOLED.setFont(RusFont);
   photoRelay.beginInit();
   endCap451.beginInit();
   endCap443.beginInit();
@@ -282,6 +285,7 @@ void loop()
     if(relaySignalLamp.getCondition())
       relaySignalLamp.close(delaySignalLamp);
   }
+  emergencyStop();
   // Сброс команды включения сигнальной лампы
   if (millis() >= (currentTimeSignalLamp + 60000) && cmdSignalLamp)
   {
@@ -336,27 +340,54 @@ void getEndCap(){
   //   isClosed = false;
   //   DEBUGLN("Endcap close is down");
   // }
-  if(millis() >= currentTime250ms + 250){
+  if(millis() >= currentTime250ms + 50){
     currentTime250ms = millis();
     bool flendCap451 = endCap451.getCondition();
     bool flendCap443 = endCap443.getCondition();
+    // if(flendCap443)
+    //   DEBUGLN("443 on");
+    // else
+    //   DEBUGLN("443 off");
+    // if(flendCap451)
+    //   DEBUGLN("451 on");
+    // else
+    //   DEBUGLN("451 off");
     if(!flendCap451 && !flendCap443 && !isOpened && !isClosed){
-      isOpened = true;
-      DEBUGLN("Endcap open is up");
-    }
-    else if(flendCap451 && flendCap443 && isOpened)
-    {
-      isOpened = false;
-      DEBUGLN("Endcap open is down");
-    }
-    if(!flendCap451 && flendCap443 && !isClosed && !isOpened){
       isClosed = true;
       DEBUGLN("Endcap close is up");
     }
-    else if(flendCap451 && flendCap443 && isClosed){
+    else if(flendCap451 && flendCap443 && isClosed)
+    {
       isClosed = false;
       DEBUGLN("Endcap close is down");
     }
+    if(!flendCap451 && flendCap443 && !isClosed && !isOpened){
+      isOpened = true;
+      DEBUGLN("Endcap open is up");
+    }
+    else if(flendCap451 && flendCap443 && isOpened){
+      isOpened = false;
+      DEBUGLN("Endcap open is down");
+    }
+  }
+}
+
+// Аварийный СТОП по истечении времени
+void emergencyStop(){
+  if((isOpening || isClosing) && !cmdEmergencyStop){
+    currentTimeEmergencyStop = millis();
+    cmdEmergencyStop = true;
+  }
+  if(cmdEmergencyStop && (millis() >= currentTimeEmergencyStop + delayEmrgnyStp)){
+    isOpening = false;
+    isClosing = false;
+    cmdEmergencyStop = false;
+
+    if(relayMotorOpen.close())
+      DEBUGLN("Closing. Relay 1 is down");
+    if(relayMotorClose.close())
+      DEBUGLN("Closing. Relay 2 is down");
+
   }
 }
 // void RECIEVE_ATTR capCloseInt(){

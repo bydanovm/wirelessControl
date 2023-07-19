@@ -4,13 +4,13 @@
 #define SIM_DEVICE // Симуляция девайсов
 #if defined(ARDUINO) && ARDUINO >= 100
     #ifdef ESP8266
-    #define pinRCSwitch          5  // D1
+    #define pinRCSwitch          D2  // D2
     #define relayMotorOpenPin    10 // SD3
     #define relayMotorClosePin   9  // SD2
-    #define relaySignalLampPin   4  // D2
-    #define endCapOpenPin        14 // D5 opened
-    #define endCapClosePin       12 // D6 closed
-    #define photoRelayPin        13 // D7
+    #define relaySignalLampPin   D1  // D1
+    #define endCapOpenPin        D6 // D5 opened
+    #define endCapClosePin       D5 // D6 closed
+    #define photoRelayPin        D7 // D7
     #define cmdMQTTEmpty         ""
     #define cmdMQTTOpen          "OPEN"
     #define cmdMQTTClose         "CLOSE"
@@ -26,8 +26,9 @@
     #define inRelay3Pin          5 
     #endif
     #define delayStart 2000
-    #define delayStop  200
+    #define delayStop  0
     #define delaySignalLamp 1000
+    #define delayEmrgnyStp 40000
 
     #include <Arduino.h>
 
