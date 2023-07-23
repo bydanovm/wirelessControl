@@ -1,6 +1,6 @@
 #include "settings.h"
 #if defined(ESP8266)
-    // #define MQTT_ON
+    #define MQTT_ON
     #include "homeWifi.h"
 #else
 
@@ -32,16 +32,19 @@ uint32_t currentTime1S; // Текущее время для таймера в 5 
 uint32_t currentTime250ms;
 uint32_t currentTimeSignalLamp;
 uint32_t currentTimeEmergencyStop;
+uint32_t currentHalfOpening;
 
 unsigned long recData = 0; // Буфер для приема команд
-bool cmdOpen, cmdClose, cmdStopClose, cmdSignalLamp, cmdEmergencyStop = false;
-bool isOpening, isClosing = false;
+bool cmdOpen, cmdClose, cmdStopClose, cmdSignalLamp, cmdEmergencyStop, cmdHalfOpen, cmdHalfClose = false;
+bool isOpening, isClosing, isHalfOpening = false;
 bool isOpened, isClosed = false;
 bool tStatusMain, tStatusAdd = false;
 
 // Аварийный СТОП по истечении времени
 void emergencyStop();
 void getEndCap();
+// Приоткрывание ворот
+void halfOpeningGates();
 
 // void RECIEVE_ATTR capCloseInt();
 // void RECIEVE_ATTR capOpenInt();
@@ -83,7 +86,7 @@ void setup()
   currentTime1S = millis();
   currentTime250ms = millis();
 }
-
+bool isInit = false;
 void loop()
 {
   #if defined(ESP8266) && defined(MQTT_ON)
@@ -94,9 +97,13 @@ void loop()
       // Проверка открытия ворот
       if(isOpened) tStatusAdd = true;
       if(isClosed) tStatusAdd = false;
-      if(tStatusMain != tStatusAdd){
+      if(isInit && tStatusAdd != tStatusMain){
         tStatusMain = tStatusAdd;
         myWifi.setGatesStatus(tStatusMain);
+      }
+      else if(!isInit){
+        myWifi.setGatesStatus(tStatusMain);
+        isInit = true;
       }
     }
   }
@@ -127,6 +134,18 @@ void loop()
       currentTimeSignalLamp = millis();
       DEBUGLN((String)myWifi.cmdMQTT + " Signal lamp OFF MQTT cmd...");
     }
+    if(myWifi.cmdMQTT == cmdMQTTHalfOpen){
+      cmdHalfOpen = true;
+      relayMotorClose.clearErrorStatus();
+      relayMotorOpen.clearErrorStatus();
+      DEBUGLN((String)myWifi.cmdMQTT + " Half opening MQTT cmd...");
+    }
+    if(myWifi.cmdMQTT == cmdMQTTHalfClose){
+      cmdHalfClose = true;
+      relayMotorClose.clearErrorStatus();
+      relayMotorOpen.clearErrorStatus();
+      DEBUGLN((String)myWifi.cmdMQTT + " Half closing MQTT cmd...");
+    }
     myWifi.clearCmdMQTT();
   }
   #endif
@@ -154,6 +173,12 @@ void loop()
         relaySignalLamp.clearErrorStatus();
         currentTimeSignalLamp = millis();
         DEBUGLN((String)recData + " Signal lamp...");
+        break;
+      case 1596:
+        cmdHalfOpen = true;
+        relayMotorClose.clearErrorStatus();
+        relayMotorOpen.clearErrorStatus();
+        DEBUGLN((String)recData + " Half opening...");
         break;
       default:
         DEBUGLN((String)recData + " Unknown command...");
@@ -228,6 +253,7 @@ void loop()
       if(relayMotorOpen.open(delayStart)){
         isOpening = true;
         cmdOpen = false;
+        cmdEmergencyStop = false;
         if(isClosing)
           isClosing = false;
         DEBUGLN("Opening. Relay 1 is up");
@@ -256,6 +282,7 @@ void loop()
       if(relayMotorClose.open(delayStart)){
         isClosing = true;
         cmdClose = false;
+        cmdEmergencyStop = false;
         if(isOpening)
           isOpening = false;
         DEBUGLN("Closing. Relay 2 is up");
@@ -286,6 +313,7 @@ void loop()
       relaySignalLamp.close(delaySignalLamp);
   }
   emergencyStop();
+  halfOpeningGates();
   // Сброс команды включения сигнальной лампы
   if (millis() >= (currentTimeSignalLamp + 60000) && cmdSignalLamp)
   {
@@ -354,6 +382,7 @@ void getEndCap(){
     //   DEBUGLN("451 off");
     if(!flendCap451 && !flendCap443 && !isOpened && !isClosed){
       isClosed = true;
+      cmdEmergencyStop = false;
       DEBUGLN("Endcap close is up");
     }
     else if(flendCap451 && flendCap443 && isClosed)
@@ -363,6 +392,7 @@ void getEndCap(){
     }
     if(!flendCap451 && flendCap443 && !isClosed && !isOpened){
       isOpened = true;
+      cmdEmergencyStop = false;
       DEBUGLN("Endcap open is up");
     }
     else if(flendCap451 && flendCap443 && isOpened){
@@ -388,6 +418,31 @@ void emergencyStop(){
     if(relayMotorClose.close())
       DEBUGLN("Closing. Relay 2 is down");
 
+  }
+}
+// Приоткрывание ворот
+void halfOpeningGates(){
+  if(cmdHalfOpen && isClosed && !isHalfOpening){
+    isHalfOpening = true;
+  }
+  if(isHalfOpening){
+    if(relayMotorOpen.open(delayStart)){
+      currentHalfOpening = millis();
+      DEBUGLN("Half opening. Relay 1 is up");
+    }
+    if(millis() >= currentHalfOpening + 10000 && relayMotorOpen.getCondition()){
+      isHalfOpening = false;
+      if(relayMotorOpen.close(delayStop)){
+        DEBUGLN("Half opening. Relay 1 is down");
+        cmdHalfOpen = false;
+      }
+    }
+  }
+  if(cmdHalfClose && !isClosed){
+    if(relayMotorClose.open(delayStart)){
+      DEBUGLN("Half opening. Relay 1 is up");
+      cmdHalfClose = false;
+    }
   }
 }
 // void RECIEVE_ATTR capCloseInt(){

@@ -16,6 +16,8 @@
     #define cmdMQTTClose         "CLOSE"
     #define cmdMQTTLampOn        "LAMPON"
     #define cmdMQTTLampOff       "LAMPOFF"
+    #define cmdMQTTHalfOpen      "HOPEN"
+    #define cmdMQTTHalfClose     "HCLOSE"
     #else
     #define pinRCSwitch          0
     #define relayMotorOpenPin    14

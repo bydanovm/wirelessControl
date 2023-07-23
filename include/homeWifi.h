@@ -5,8 +5,8 @@
 #include <ESP8266WiFi.h>
 #include <PubSubClient.h>
 
-#define numberMaxAttemption 30 // Количетсов попыток
-#define delayAttemption     500 // Задержка между попытками
+#define numberMaxAttemption 60 // Количетсов попыток
+#define delayAttemption     2000 // Задержка между попытками
 #define delayAttemptionConn 2000 // Задержка между попытками при имеющемся соединении
 
 #define CON_OK     0x01
@@ -23,13 +23,15 @@ class homeWifi {
         const bool  mqttDeviceStatusRetained = true;
         ////////////////////////////////////////////////////////////
         // Состояние ворот (открыты/закрыты)
-        const char* mqttTopicGatesStatus     = "gates/statusGates/status";
-        const char* mqttGatesStatusOpen      = "on";
-        const char* mqttGatesStatusClose     = "off";
+        const char* mqttTopicGatesStatus     = "gates/statusGates";
+        const char* mqttGatesStatusOpen      = "1";
+        const char* mqttGatesStatusClose     = "0";
         const bool  mqttGatesStatusRetained  = false;
         ////////////////////////////////////////////////////////////
         // Команда открыть/закрыть
         const char* mqttTopicGatesCmd        = "gates/ctrlGates";
+        // Команда приоткрыть ворота
+        const char* mqttTopicHalfGatesCmd    = "gates/ctrlHalfGates";
         // Команда включить сигнальную лампу
         const char* mqttTopicSigLampCmd      = "gates/signalLamp";
         void callback(char* topic, uint8_t* payload, unsigned int length);

@@ -115,6 +115,7 @@ bool homeWifi::checkConnectMQTT(){
                                mqttDeviceStatusRetained);
             mqttClient.subscribe(mqttTopicGatesCmd);
             mqttClient.subscribe(mqttTopicSigLampCmd);
+            mqttClient.subscribe(mqttTopicHalfGatesCmd);
         }
         else{
             DEBUGLN("error: " + (String)mqttClient.state());
@@ -152,6 +153,10 @@ void homeWifi::callback(char* topic, uint8_t* payload, unsigned int length) {
     else if( String(topic) == mqttTopicSigLampCmd ){
         if(data_pay == "ON" || data_pay == "1") cmdMQTT = cmdMQTTLampOn;
         if(data_pay == "OFF" || data_pay == "0") cmdMQTT = cmdMQTTLampOff;
+    }
+    else if( String(topic) == mqttTopicHalfGatesCmd ){
+        if(data_pay == "ON" || data_pay == "1") cmdMQTT = cmdMQTTHalfOpen;
+        if(data_pay == "OFF" || data_pay == "0") cmdMQTT = cmdMQTTHalfClose;
     }
 }
 void homeWifi::clearCmdMQTT(){
